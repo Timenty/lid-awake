@@ -22,7 +22,7 @@ final class App: NSObject, NSApplicationDelegate {
     var step = UserDefaults.standard.object(forKey: "step") as? Int ?? 3 // индекс в steps, по умолчанию 1 ч
     weak var menu: NSMenu?
     weak var durLabel: NSTextField?
-    let clock: DateFormatter = { let f = DateFormatter(); f.timeStyle = .short; return f }()
+    lazy var clock: DateFormatter = { let f = DateFormatter(); f.timeStyle = .short; return f }()
 
     func applicationDidFinishLaunching(_: Notification) {
         let b = item.button!
@@ -51,6 +51,7 @@ final class App: NSObject, NSApplicationDelegate {
         if v, let minutes {
             let at = Date().addingTimeInterval(TimeInterval(minutes * 60))
             let t = Timer(fire: at, interval: 0, repeats: false) { [weak self] _ in self?.turn(false) }
+            t.tolerance = 1 // даём системе объединять пробуждения
             RunLoop.main.add(t, forMode: .common)
             offAt = at; offTimer = t
         }
@@ -122,11 +123,16 @@ final class App: NSObject, NSApplicationDelegate {
         guard (try? rule.write(toFile: tmp, atomically: true, encoding: .utf8)) != nil else { return false }
         defer { try? FileManager.default.removeItem(atPath: tmp) }
         let cmd = "/usr/sbin/visudo -cf '\(tmp)' && /usr/bin/install -m 0440 -o root -g wheel '\(tmp)' /etc/sudoers.d/lidawake"
-        let script = NSAppleScript(source: "do shell script \"\(cmd)\" with administrator privileges " +
-                                   "with prompt \"LidAwake: разрешить отключать сон Mac\"")
-        var err: NSDictionary?
-        script?.executeAndReturnError(&err)
-        return err == nil
+        // osascript отдельным процессом: AppleScript-фреймворки не грузятся в память приложения.
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        p.arguments = ["-e", "do shell script \"\(cmd)\" with administrator privileges " +
+                             "with prompt \"LidAwake: разрешить отключать сон Mac\""]
+        p.standardOutput = FileHandle.nullDevice
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return false }
+        p.waitUntilExit()
+        return p.terminationStatus == 0
     }
 
     func set(_ v: Bool) -> Bool {
@@ -187,6 +193,7 @@ final class App: NSObject, NSApplicationDelegate {
             if left > 1 {
                 let t = Timer(fire: offAt.addingTimeInterval(-Double(left - 1) * 60 + 0.1), interval: 0,
                               repeats: false) { [weak self] _ in self?.render() }
+                t.tolerance = 1
                 RunLoop.main.add(t, forMode: .common)
                 tick = t
             }
