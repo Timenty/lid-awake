@@ -18,7 +18,8 @@ cat > $APP/Contents/Info.plist <<PLIST
 <key>CFBundleIdentifier</key><string>local.lidawake</string>
 <key>CFBundleName</key><string>LidAwake</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.0</string>
+<key>CFBundleShortVersionString</key><string>1.1.0</string>
+<key>CFBundleVersion</key><string>1.1.0</string>
 <key>LSMinimumSystemVersion</key><string>11.0</string>
 <key>LSUIElement</key><true/>
 </dict></plist>

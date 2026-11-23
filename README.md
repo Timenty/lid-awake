@@ -44,21 +44,28 @@ macOS normally puts a MacBook to sleep the moment you close the lid unless an ex
 
 ## Installation
 
-### Option A — prebuilt app
+### Option A — one command (recommended)
 
-1. Download `LidAwake.zip` (from Releases, or build it yourself with `./dist.sh`) and unzip it.
-2. Drag **LidAwake.app** to **Applications**.
-3. Open it. The app is ad-hoc signed (not notarized by Apple), so the first time macOS will block it:
-   - Click **Done** in the warning dialog.
-   - Open **System Settings → Privacy & Security**, scroll down to *"LidAwake was blocked…"* and click **Open Anyway**, then confirm with your password.
-   - On older macOS versions you can instead right-click the app → **Open** → **Open**.
-4. The empty mug appears in the menu bar. Click it — macOS will ask for your password **once** to allow LidAwake to toggle sleep.
+```sh
+curl -fsSL https://raw.githubusercontent.com/Timenty/lid-awake/main/get.sh | zsh
+```
 
-You must be an administrator on the Mac (needed to install the sudo rule).
+[`get.sh`](get.sh) downloads the latest release with `curl`, installs it to `/Applications` (or `~/Applications` if you're not an admin), quits the old version if it's running, and launches the app. Files fetched by `curl` don't get the `com.apple.quarantine` flag, so macOS doesn't block the ad-hoc signed app. Run the same command again to update.
 
-**Launch at login:** System Settings → General → Login Items → `+` → LidAwake.
+Then click the mug — macOS will ask for your password **once** to allow LidAwake to toggle sleep. You must be an administrator on the Mac (needed to install the sudo rule).
 
-### Option B — build from source
+### Option B — prebuilt app, manual
+
+1. Download `LidAwake.zip` from [Releases](https://github.com/Timenty/lid-awake/releases/latest) and unzip it.
+2. Drag **LidAwake.app** to **Applications** and open it. The app is ad-hoc signed (not notarized by Apple), so macOS will block it the first time:
+   - *"Apple could not verify…"* → click **Done**, then **System Settings → Privacy & Security** → *"LidAwake was blocked…"* → **Open Anyway**.
+   - *"LidAwake can't be opened"* (only an **OK** button) → remove the quarantine flag:
+     ```sh
+     xattr -cr /Applications/LidAwake.app && open /Applications/LidAwake.app
+     ```
+3. Click the mug — macOS will ask for your password once.
+
+### Option C — build from source
 
 Requires Xcode Command Line Tools (`xcode-select --install`).
 
@@ -67,6 +74,8 @@ git clone https://github.com/Timenty/lid-awake.git
 cd lid-awake
 ./install.sh     # build, install sudo rule (GUI password prompt), copy to /Applications, launch
 ```
+
+**Launch at login** (any option): System Settings → General → Login Items → `+` → LidAwake.
 
 ## How it works
 
@@ -139,6 +148,7 @@ No Xcode project — plain `swiftc`.
 | `build.sh` | Builds a universal (`arm64` + `x86_64`, macOS 11+) `LidAwake.app`, ad-hoc signed |
 | `install.sh` | Builds, installs the sudo rule, copies the app to `/Applications` and launches it |
 | `dist.sh` | Builds and packages `dist/LidAwake.zip` (app + install guide) for sharing |
+| `get.sh` | One-command installer/updater: downloads the latest release zip and installs it |
 | `Как установить.txt` | Step-by-step install guide for non-technical users (Russian) |
 
 ```sh
