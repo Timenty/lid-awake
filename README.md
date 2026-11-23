@@ -31,7 +31,7 @@ macOS normally puts a MacBook to sleep the moment you close the lid unless an ex
 - **Countdown in the menu bar** next to the mug while a timer is running (`H:MM`).
 - **Safety mode** (on by default, toggle in the menu) — protects the Mac while the lid is closed:
   - **Lid closed → screen brightness set to 0** (the screen is *not* locked); lid opened → previous brightness restored.
-  - **Overheating with the lid closed → trackpad siren**: the Force Touch motor plays a smooth rising 20 → 600 Hz sweep (lingers in the lows, accelerates at the end) once per second, 10 times, each pulse longer than the last (0.2 → 0.5 s). It is both felt and heard — even with speakers muted. Opening the lid stops it.
+  - **Overheating with the lid closed → trackpad siren**: the Force Touch motor plays a smooth rising 20 → 600 Hz sweep (lingers in the lows, accelerates at the end) once per second, 10 times, each pulse longer than the last (0.2 → 0.5 s), at 80% strength to spare the motor. It is both felt and heard — even with speakers muted. Opening the lid stops it.
   - **Still hot after 1 min → Low Power Mode** is turned on (and turned back off when the Mac cools down, only if LidAwake was the one that enabled it).
   - **Still hot after 3 min → sleep is re-enabled** and the Mac is put to sleep to prevent damage. The menu shows a note about it afterwards.
 - **Colored icon** when active — brown coffee and steam; adapts to light and dark menu bars. Monochrome empty mug when inactive.
@@ -135,6 +135,7 @@ No Xcode project — plain `swiftc`.
 | `main.swift` | App: status item, toggle, timer menu, safety state machine, `pmset`/IOKit logic, sudo setup |
 | `Safety.swift` | Lid notifications, built-in display brightness, trackpad siren |
 | `Mug.swift` | Hand-drawn mug icon (empty template / filled with coffee + steam) |
+| `demo/siren.sh` | Standalone siren demo (builds `demo/main.swift` + `Safety.swift` on first run) |
 | `build.sh` | Builds a universal (`arm64` + `x86_64`, macOS 11+) `LidAwake.app`, ad-hoc signed |
 | `install.sh` | Builds, installs the sudo rule, copies the app to `/Applications` and launches it |
 | `dist.sh` | Builds and packages `dist/LidAwake.zip` (app + install guide) for sharing |
@@ -146,6 +147,17 @@ No Xcode project — plain `swiftc`.
 ```
 
 Editors using SourceKit may show `Cannot find 'mugImage' / 'Lid' in scope` — that's because the Swift files are compiled together by `build.sh` without a package manifest; the build itself is fine.
+
+### Siren demo
+
+Hear (and film) the overheat siren without actually overheating your Mac:
+
+```sh
+./demo/siren.sh         # turn LidAwake on, then close the lid — plays while the lid is closed
+./demo/siren.sh --now   # play immediately, lid open
+```
+
+It plays exactly what safety mode plays: 10 pulses, one per second, each a 20 → 600 Hz sweep growing from 0.2 to 0.5 s.
 
 ### Distribution without Gatekeeper warnings
 

@@ -110,7 +110,8 @@ final class Haptic {
     /// первая половина — нижняя четверть диапазона, вторая — разгон к верху.
     /// Мотор перезапускается кусками ~5 мс (на низах — один период), в каждом целое число периодов:
     /// частота обновляется почти каждый период, стыки без щелчков, драйвер не захлёбывается.
-    func buzz(ms: Double = 200, from: Double = 20, to: Double = 600) {
+    /// `level` — сила 0…1; 0.8 с запасом до потолка драйвера, бережнее к мотору на низах.
+    func buzz(ms: Double = 200, from: Double = 20, to: Double = 600, level: Float = 0.8) {
         q.async { [self] in
             guard open(), let actuator, let shapeCreate, let shapePlay else { return }
             let motor = Unmanaged.passUnretained(actuator).toOpaque()
@@ -125,7 +126,7 @@ final class Haptic {
                     "Tones": [["Type": "Sine", "Amplitude": 1.0, "DurationMS": seg * 1000, "DelayMS": 0.0,
                                "FrequencykHz": hz / 1000]],
                 ]
-                if let a = shapeCreate(shape as CFDictionary, 0) { _ = shapePlay(a, motor, 0, 1, 0) }
+                if let a = shapeCreate(shape as CFDictionary, 0) { _ = shapePlay(a, motor, 0, level, 0) }
                 t += seg
                 let due = start + UInt64(t * 1e9), now = DispatchTime.now().uptimeNanoseconds
                 if due > now { usleep(UInt32((due - now) / 1000)) } // без накопления задержки
