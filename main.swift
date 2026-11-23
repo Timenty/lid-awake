@@ -17,7 +17,8 @@ let sudoCmds = ["-a disablesleep 0", "-a disablesleep 1", "-a lowpowermode 0", "
 
 func fmt(_ m: Int) -> String {
     let h = m / 60, mm = m % 60
-    return h == 0 ? "\(mm) мин" : mm == 0 ? "\(h) ч" : "\(h) ч \(mm) мин"
+    let hs = t("h", "ч"), ms = t("min", "мин")
+    return h == 0 ? "\(mm) \(ms)" : mm == 0 ? "\(h) \(hs)" : "\(h) \(hs) \(mm) \(ms)"
 }
 
 func pmset(_ args: String...) -> Bool { run("/usr/bin/sudo", ["-n", "/usr/bin/pmset"] + args) == 0 }
@@ -150,7 +151,8 @@ final class App: NSObject, NSApplicationDelegate {
         schedule(lowPowerAfter, repeats: false) { [weak self] _ in self?.enableLowPower() }
         schedule(sleepAfter, repeats: false) { [weak self] _ in
             guard let self else { return }
-            safetyNote = "Перегрев: сон включён в \(clock.string(from: Date()))"
+            let at = clock.string(from: Date())
+            safetyNote = t("Overheated: sleep re-enabled at \(at)", "Перегрев: сон включён в \(at)")
             turn(false)
         }
     }
@@ -194,24 +196,27 @@ final class App: NSObject, NSApplicationDelegate {
         if on {
             if let offAt {
                 let left = max(1, Int((offAt.timeIntervalSinceNow / 60).rounded(.up)))
-                info("Выключится в \(clock.string(from: offAt)) (через \(fmt(left)))")
+                let at = clock.string(from: offAt), inT = fmt(left)
+                info(t("Turns off at \(at) (in \(inT))", "Выключится в \(at) (через \(inT))"))
             } else {
-                info("Включено, пока не выключите")
+                info(t("On until you turn it off", "Включено, пока не выключите"))
             }
-            m.addItem(withTitle: "Выключить", action: #selector(turnOff), keyEquivalent: "").target = self
+            m.addItem(withTitle: t("Turn Off", "Выключить"), action: #selector(turnOff), keyEquivalent: "").target = self
             m.addItem(.separator())
         }
-        info("Включить на время:")
+        info(t("Turn on for:", "Включить на время:"))
         let row = NSMenuItem()
         row.view = timerRow()
         m.addItem(row)
         m.addItem(.separator())
-        let s = m.addItem(withTitle: "Защита от перегрева", action: #selector(toggleSafety), keyEquivalent: "")
+        let s = m.addItem(withTitle: t("Overheat Protection", "Защита от перегрева"), action: #selector(toggleSafety), keyEquivalent: "")
         s.target = self
         s.state = safety ? .on : .off
-        s.toolTip = "Крышка закрыта → экран гаснет (без блокировки).\n" +
-            "Перегрев при закрытой крышке → гул тачпадом, через 1 мин энергосбережение, через 3 мин Mac засыпает."
-        m.addItem(withTitle: "Выйти", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        s.toolTip = t("Lid closed → screen goes dark (not locked).\n" +
+                      "Overheating with the lid closed → trackpad siren, Low Power Mode after 1 min, sleep after 3 min.",
+                      "Крышка закрыта → экран гаснет (без блокировки).\n" +
+                      "Перегрев при закрытой крышке → гул тачпадом, через 1 мин энергосбережение, через 3 мин Mac засыпает.")
+        m.addItem(withTitle: t("Quit LidAwake", "Выйти"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu = m
         item.menu = m
         item.button!.performClick(nil) // блокирует, пока меню открыто
@@ -227,7 +232,7 @@ final class App: NSObject, NSApplicationDelegate {
         st.minValue = 0; st.maxValue = Double(steps.count - 1); st.increment = 1
         st.integerValue = step
         st.target = self; st.action = #selector(stepped(_:))
-        let b = NSButton(title: "Старт", target: self, action: #selector(startTimed))
+        let b = NSButton(title: t("Start", "Старт"), target: self, action: #selector(startTimed))
         b.bezelStyle = .rounded
         b.keyEquivalent = "\r"
         b.frame = NSRect(x: 150, y: 2, width: 80, height: 28)
@@ -260,8 +265,10 @@ final class App: NSObject, NSApplicationDelegate {
         defer { try? FileManager.default.removeItem(atPath: tmp) }
         let cmd = "/usr/sbin/visudo -cf '\(tmp)' && /usr/bin/install -m 0440 -o root -g wheel '\(tmp)' /etc/sudoers.d/lidawake"
         // osascript отдельным процессом: AppleScript-фреймворки не грузятся в память приложения.
+        let prompt = t("LidAwake wants to manage sleep and Low Power Mode on this Mac.",
+                       "LidAwake: разрешить управлять сном и энергосбережением Mac")
         let ok = run("/usr/bin/osascript", ["-e", "do shell script \"\(cmd)\" with administrator privileges " +
-                                                  "with prompt \"LidAwake: разрешить управлять сном и энергосбережением Mac\""]) == 0
+                                                  "with prompt \"\(prompt)\""]) == 0
         if ok { sudoRulesOK = true }
         return ok
     }
@@ -346,7 +353,8 @@ final class App: NSObject, NSApplicationDelegate {
             item.length = NSStatusItem.squareLength
         }
         b.toolTip = !on ? "LidAwake: OFF"
-            : offAt.map { "LidAwake: не спит до \(clock.string(from: $0))" } ?? "LidAwake: ON — Mac не спит"
+            : offAt.map { let at = clock.string(from: $0); return t("LidAwake: awake until \(at)", "LidAwake: не спит до \(at)") }
+            ?? t("LidAwake: ON — Mac won't sleep", "LidAwake: ON — Mac не спит")
     }
 }
 

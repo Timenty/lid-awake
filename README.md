@@ -40,7 +40,7 @@ macOS normally puts a MacBook to sleep the moment you close the lid unless an ex
 - **Tiny and idle** — ~330 KB universal binary, no dependencies, no background polling, 0% CPU when idle. The countdown redraws only at the exact moment the minute changes.
 - **Universal** — runs natively on Apple Silicon and Intel, macOS 11 Big Sur and later.
 
-> **UI language:** the in-app menu and the install guide (`Как установить.txt`) are currently in Russian.
+> **Language:** the app follows the system language — Russian if it's your first preferred language, English otherwise. The installer and the bundled install guide (`How to install.txt` / `Как установить.txt`) are bilingual too.
 
 ## Installation
 
@@ -54,7 +54,18 @@ curl -fsSL https://raw.githubusercontent.com/Timenty/lid-awake/main/get.sh | zsh
 
 Then click the mug — macOS will ask for your password **once** to allow LidAwake to toggle sleep. You must be an administrator on the Mac (needed to install the sudo rule).
 
-### Option B — prebuilt app, manual
+### Option B — Homebrew
+
+```sh
+brew install --cask timenty/tap/lidawake
+```
+
+Upgrade with `brew upgrade --cask lidawake`. The cask lives in [Timenty/homebrew-tap](https://github.com/Timenty/homebrew-tap); it clears the quarantine flag after install so the ad-hoc signed app opens normally.
+
+- `brew uninstall --cask lidawake` — quits the app (restoring sleep) and removes it.
+- `brew uninstall --cask --zap lidawake` — also removes the sudo rule and settings.
+
+### Option C — prebuilt app, manual
 
 1. Download `LidAwake.zip` from [Releases](https://github.com/Timenty/lid-awake/releases/latest) and unzip it.
 2. Drag **LidAwake.app** to **Applications** and open it. The app is ad-hoc signed (not notarized by Apple), so macOS will block it the first time:
@@ -65,7 +76,7 @@ Then click the mug — macOS will ask for your password **once** to allow LidAwa
      ```
 3. Click the mug — macOS will ask for your password once.
 
-### Option C — build from source
+### Option D — build from source
 
 Requires Xcode Command Line Tools (`xcode-select --install`).
 
@@ -147,9 +158,12 @@ No Xcode project — plain `swiftc`.
 | `demo/siren.sh` | Standalone siren demo (builds `demo/main.swift` + `Safety.swift` on first run) |
 | `build.sh` | Builds a universal (`arm64` + `x86_64`, macOS 11+) `LidAwake.app`, ad-hoc signed |
 | `install.sh` | Builds, installs the sudo rule, copies the app to `/Applications` and launches it |
-| `dist.sh` | Builds and packages `dist/LidAwake.zip` (app + install guide) for sharing |
+| `L10n.swift` | `t("English", "Русский")` — picks the string by system language |
+| `VERSION` | App version, read by `build.sh` |
+| `dist.sh` | Builds and packages `dist/LidAwake.zip` (app + install guides) for sharing |
+| `release.sh` | Cuts a release: bumps `VERSION`, builds, tags, publishes the GitHub release, updates the Homebrew cask |
 | `get.sh` | One-command installer/updater: downloads the latest release zip and installs it |
-| `Как установить.txt` | Step-by-step install guide for non-technical users (Russian) |
+| `How to install.txt` / `Как установить.txt` | Step-by-step install guides for non-technical users |
 
 ```sh
 ./build.sh   # → LidAwake.app
@@ -168,6 +182,14 @@ Hear (and film) the overheat siren without actually overheating your Mac:
 ```
 
 It plays exactly what safety mode plays: 10 pulses, one per second, each a 20 → 600 Hz sweep growing from 0.2 to 0.5 s.
+
+### Releasing
+
+```sh
+./release.sh 1.3.0
+```
+
+Requires a clean working tree and an authenticated `gh`. It writes `VERSION`, builds `dist/LidAwake.zip`, commits and tags `v1.3.0`, publishes the GitHub release with the zip, and bumps `version`/`sha256` in the [Homebrew cask](https://github.com/Timenty/homebrew-tap/blob/main/Casks/lidawake.rb). `get.sh` always fetches the latest release, so nothing else needs updating.
 
 ### Distribution without Gatekeeper warnings
 

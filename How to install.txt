@@ -1,0 +1,35 @@
+LidAwake — a mug in the menu bar. Full mug = your Mac won't sleep, even with the lid closed.
+
+INSTALL — EASIEST (one command)
+1. Open Terminal (Cmd+Space → "Terminal" → Enter).
+2. Paste this line and press Enter:
+
+   curl -fsSL https://raw.githubusercontent.com/Timenty/lid-awake/main/get.sh | zsh
+
+3. An empty mug appears at the top right. The same command updates to a new version.
+
+   Homebrew users:  brew install --cask timenty/tap/lidawake
+
+INSTALL MANUALLY (from this archive)
+1. Drag LidAwake.app into the Applications folder.
+2. Open LidAwake. If macOS won't open it:
+   • "Apple could not verify…" → Done → System Settings →
+     Privacy & Security → at the bottom "LidAwake was blocked" → Open Anyway.
+   • "LidAwake can't be opened" (only an OK button) → run in Terminal:
+       xattr -cr /Applications/LidAwake.app && open /Applications/LidAwake.app
+3. An empty mug appears at the top right.
+
+USAGE
+• Click the mug — on/off. The first time, macOS asks for your Mac password (once).
+• Right-click (or two-finger click) — menu: pick a duration (−/+) and press Start — it turns off by itself.
+  Also: Turn Off, Overheat Protection, Quit (sleep is restored).
+• Launch at login: System Settings → General → Login Items → + → LidAwake.
+
+OVERHEAT PROTECTION (in the menu, on by default)
+• Lid closed — the screen goes dark (not locked); lid opened — brightness is restored.
+• Overheating with the lid closed — the trackpad plays a siren 10 times (once a second).
+  Open the lid to stop it. Still hot after 1 min — Low Power Mode; after 3 min — the Mac goes to sleep.
+
+IMPORTANT: protection is a safety net, not a permission slip. Don't leave your Mac in a bag with a full mug for long.
+
+The app follows your system language (Russian or English).

@@ -11,25 +11,27 @@ let pulses = 10
 
 if !now {
     if !sleepDisabled() {
-        print("⚠️  Mac уснёт при закрытии крышки. Включите LidAwake (полная кружка) и запустите снова.")
+        print(t("⚠️  The Mac will sleep when the lid closes. Turn LidAwake on (full mug) and run again.",
+              "⚠️  Mac уснёт при закрытии крышки. Включите LidAwake (полная кружка) и запустите снова."))
         exit(1)
     }
-    print("☕ Закройте крышку — сирена начнётся через секунду. Откройте — остановится.")
+    print(t("☕ Close the lid — the siren starts in a second. Open it to stop.",
+            "☕ Закройте крышку — сирена начнётся через секунду. Откройте — остановится."))
     while !lid.isClosed { usleep(100_000) }
-    print("🔒 Крышка закрыта")
+    print(t("🔒 Lid closed", "🔒 Крышка закрыта"))
     sleep(1)
 }
 
 for i in 0..<pulses {
-    if !now && !lid.isClosed { print("🔓 Крышка открыта — стоп"); break }
+    if !now && !lid.isClosed { print(t("🔓 Lid opened — stop", "🔓 Крышка открыта — стоп")); break }
     let ms = 200 + 300 * Double(i) / Double(pulses - 1)
-    print("🔊 \(i + 1)/\(pulses)  20→600 Гц, \(Int(ms)) мс")
+    print("🔊 \(i + 1)/\(pulses)  20→600 \(t("Hz", "Гц")), \(Int(ms)) \(t("ms", "мс"))")
     haptic.buzz(ms: ms)
     Thread.sleep(forTimeInterval: 1)
 }
 haptic.close()
 Thread.sleep(forTimeInterval: 0.2)
-print("✅ Готово")
+print(t("✅ Done", "✅ Готово"))
 
 func sleepDisabled() -> Bool {
     let p = Process(), pipe = Pipe()

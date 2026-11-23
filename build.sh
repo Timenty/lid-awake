@@ -2,10 +2,11 @@
 set -e
 cd "$(dirname "$0")"
 APP=LidAwake.app
+VERSION=$(cat VERSION)
 rm -rf $APP
 mkdir -p $APP/Contents/MacOS
 for A in arm64 x86_64; do
-  swiftc -O -wmo -target $A-apple-macos11 main.swift Mug.swift Safety.swift -o /tmp/lidawake-$A
+  swiftc -O -wmo -target $A-apple-macos11 main.swift Mug.swift Safety.swift L10n.swift -o /tmp/lidawake-$A
 done
 lipo -create /tmp/lidawake-arm64 /tmp/lidawake-x86_64 -output $APP/Contents/MacOS/LidAwake
 rm -f /tmp/lidawake-arm64 /tmp/lidawake-x86_64
@@ -17,9 +18,11 @@ cat > $APP/Contents/Info.plist <<PLIST
 <key>CFBundleExecutable</key><string>LidAwake</string>
 <key>CFBundleIdentifier</key><string>local.lidawake</string>
 <key>CFBundleName</key><string>LidAwake</string>
+<key>CFBundleDevelopmentRegion</key><string>en</string>
+<key>CFBundleLocalizations</key><array><string>en</string><string>ru</string></array>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.1.0</string>
-<key>CFBundleVersion</key><string>1.1.0</string>
+<key>CFBundleShortVersionString</key><string>$VERSION</string>
+<key>CFBundleVersion</key><string>$VERSION</string>
 <key>LSMinimumSystemVersion</key><string>11.0</string>
 <key>LSUIElement</key><true/>
 </dict></plist>
