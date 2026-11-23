@@ -1,0 +1,17 @@
+# Build output
+LidAwake.app/
+dist/
+*.o
+*.dSYM/
+
+# macOS
+.DS_Store
+._*
+
+# Editors / tooling
+.vscode/
+.idea/
+*.swp
+.build/
+.swiftpm/
+xcuserdata/
