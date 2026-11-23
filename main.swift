@@ -1,5 +1,6 @@
 import AppKit
 import IOKit.pwr_mgt
+import ServiceManagement
 
 // LidAwake — `pmset -a disablesleep 1` + display-sleep assertion (как `caffeinate -d`).
 // Левый клик — вкл/выкл бессрочно. Правый клик — меню: включить на время, защита, выключить, выйти.
@@ -35,6 +36,7 @@ final class App: NSObject, NSApplicationDelegate {
     lazy var step = defaults.object(forKey: "step") as? Int ?? 3 // индекс в steps, по умолчанию 1 ч
     weak var menu: NSMenu?
     weak var durLabel: NSTextField?
+    weak var untilLabel: NSTextField?
     lazy var clock: DateFormatter = { let f = DateFormatter(); f.timeStyle = .short; return f }()
 
     // Защита
@@ -179,8 +181,8 @@ final class App: NSObject, NSApplicationDelegate {
         if run("/usr/bin/pmset", ["sleepnow"]) != 0 { _ = pmset("sleepnow") }
     }
 
-    @objc func toggleSafety() {
-        safety.toggle()
+    @objc func switchSafety(_ sw: NSSwitch) {
+        safety = sw.state == .on
         defaults.set(safety, forKey: "safety")
         if safety && on { ensureSudoRules() }
         evaluate()
@@ -188,63 +190,184 @@ final class App: NSObject, NSApplicationDelegate {
 
     // MARK: - Меню
 
+    let menuWidth: CGFloat = 272, rightInset: CGFloat = 11
+    /// Колонки иконок и заголовков стандартных пунктов (замерено на macOS 26) — по ним выравниваем свои view.
+    /// Иконки у пунктов — с macOS 26. В macOS 27 система прячет по умолчанию только символьные иконки,
+    /// наши (символ, перерисованный в картинку 16×16) остаются видны — так и задумано.
+    var showIcons: Bool { if #available(macOS 26, *) { return true } else { return false } }
+    var iconX: CGFloat { 16 }
+    var titleX: CGFloat {
+        if showIcons { return 36 }
+        if #available(macOS 26, *) { return 14 } // меню без иконок, замер на 26 (основа меню та же в 27)
+        return 21
+    }
+
+    /// Иконка в колонке иконок стандартных пунктов.
+    func iconView(_ name: String, rowHeight h: CGFloat, top: CGFloat? = nil) -> NSImageView? {
+        guard let img = symbol(name) else { return nil }
+        let iv = NSImageView(image: img)
+        iv.contentTintColor = .labelColor
+        iv.imageScaling = .scaleProportionallyDown
+        iv.frame = NSRect(x: iconX, y: top.map { $0 - 16 } ?? (h - 16) / 2, width: 16, height: 16)
+        return iv
+    }
+
+    /// Иконки у пунктов, как в системных меню macOS 26. На старых macOS меню без иконок.
+    /// Символ вписан в единый квадрат 16×16: ширина колонки иконок (а значит, и отступ текста)
+    /// не зависит от того, какие пункты сейчас в меню.
+    func symbol(_ name: String) -> NSImage? {
+        guard showIcons, let sym = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        else { return nil }
+        let side: CGFloat = 16
+        let img = NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
+            let k = min(1, side / max(sym.size.width, sym.size.height))
+            let w = sym.size.width * k, h = sym.size.height * k
+            sym.draw(in: NSRect(x: (side - w) / 2, y: (side - h) / 2, width: w, height: h))
+            return true
+        }
+        img.isTemplate = true
+        return img
+    }
+
     func showMenu() {
         let m = NSMenu()
         m.autoenablesItems = false
-        func info(_ s: String) { m.addItem(withTitle: s, action: nil, keyEquivalent: "").isEnabled = false }
-        if let safetyNote { info("⚠️ " + safetyNote); m.addItem(.separator()) }
-        if on {
-            if let offAt {
-                let left = max(1, Int((offAt.timeIntervalSinceNow / 60).rounded(.up)))
-                let at = clock.string(from: offAt), inT = fmt(left)
-                info(t("Turns off at \(at) (in \(inT))", "Выключится в \(at) (через \(inT))"))
-            } else {
-                info(t("On until you turn it off", "Включено, пока не выключите"))
-            }
-            m.addItem(withTitle: t("Turn Off", "Выключить"), action: #selector(turnOff), keyEquivalent: "").target = self
-            m.addItem(.separator())
+        func add(_ title: String, _ icon: String, _ action: Selector? = nil, key: String = "") {
+            let i = m.addItem(withTitle: title, action: action, keyEquivalent: key)
+            i.target = self
+            i.image = symbol(icon)
+            i.isEnabled = action != nil
         }
-        info(t("Turn on for:", "Включить на время:"))
-        let row = NSMenuItem()
-        row.view = timerRow()
-        m.addItem(row)
+        func custom(_ v: NSView) { let i = NSMenuItem(); i.view = v; m.addItem(i) }
+
+        if let safetyNote { add(safetyNote, "exclamationmark.triangle"); m.addItem(.separator()) }
+        // Набор пунктов всегда один и тот же (HIG): меняются только подписи.
+        if !on {
+            add(t("Off — normal sleep", "Выключено — обычный сон"), "moon.zzz")
+        } else if let offAt {
+            let left = max(1, Int((offAt.timeIntervalSinceNow / 60).rounded(.up)))
+            let at = clock.string(from: offAt), inT = fmt(left)
+            add(t("Turns off at \(at) (in \(inT))", "Выключится в \(at) (через \(inT))"), "timer")
+        } else {
+            add(t("On until you turn it off", "Включено, пока не выключите"), "infinity")
+        }
+        add(on ? t("Turn Off", "Выключить") : t("Turn On", "Включить"), "power", #selector(toggleFromMenu))
         m.addItem(.separator())
-        let s = m.addItem(withTitle: t("Overheat Protection", "Защита от перегрева"), action: #selector(toggleSafety), keyEquivalent: "")
-        s.target = self
-        s.state = safety ? .on : .off
-        s.toolTip = t("Lid closed → screen goes dark (not locked).\n" +
-                      "Overheating with the lid closed → trackpad siren, Low Power Mode after 1 min, sleep after 3 min.",
-                      "Крышка закрыта → экран гаснет (без блокировки).\n" +
-                      "Перегрев при закрытой крышке → гул тачпадом, через 1 мин энергосбережение, через 3 мин Mac засыпает.")
-        m.addItem(withTitle: t("Quit LidAwake", "Выйти"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        custom(timerView())
+        m.addItem(.separator())
+        custom(safetyView())
+        if let v = loginView() { custom(v) }
+        m.addItem(.separator())
+        add(t("Quit LidAwake", "Выйти"), "xmark", #selector(quit), key: "q")
         menu = m
         item.menu = m
         item.button!.performClick(nil) // блокирует, пока меню открыто
         item.menu = nil
     }
 
-    func timerRow() -> NSView {
-        let v = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 32))
-        let label = NSTextField(labelWithString: fmt(steps[step]))
-        label.font = .menuFont(ofSize: 0)
-        label.frame = NSRect(x: 20, y: 7, width: 100, height: 18)
-        let st = NSStepper(frame: NSRect(x: 122, y: 4, width: 19, height: 24))
-        st.minValue = 0; st.maxValue = Double(steps.count - 1); st.increment = 1
-        st.integerValue = step
-        st.target = self; st.action = #selector(stepped(_:))
+    /// Ползунок длительности (как в Пункте управления): «⏲ 2 ч ··· до 16:40», ползунок, Старт.
+    func timerView() -> NSView {
+        let x = titleX, h: CGFloat = 92, inner = menuWidth - x - rightInset
+        let v = NSView(frame: NSRect(x: 0, y: 0, width: menuWidth, height: h))
+        v.autoresizingMask = .width
+        if let iv = iconView("timer", rowHeight: 24, top: h - 4) { v.addSubview(iv) }
+        let dur = NSTextField(labelWithString: "")
+        dur.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+        dur.frame = NSRect(x: x, y: h - 20, width: inner / 2, height: 16)
+        dur.autoresizingMask = .width
+        let until = NSTextField(labelWithString: "")
+        until.font = .menuFont(ofSize: 0)
+        until.textColor = .secondaryLabelColor
+        until.alignment = .right
+        until.frame = NSRect(x: x + inner / 2, y: h - 20, width: inner / 2, height: 16)
+        until.autoresizingMask = [.width, .minXMargin]
+        let s = NSSlider(value: Double(step), minValue: 0, maxValue: Double(steps.count - 1),
+                         target: self, action: #selector(slid(_:)))
+        s.numberOfTickMarks = steps.count
+        s.allowsTickMarkValuesOnly = true
+        s.isContinuous = true
+        s.frame = NSRect(x: x - 2, y: 38, width: inner + 4, height: 24) // трек внутри на 2pt уже рамки
+        s.autoresizingMask = .width
         let b = NSButton(title: t("Start", "Старт"), target: self, action: #selector(startTimed))
         b.bezelStyle = .rounded
         b.keyEquivalent = "\r"
-        b.frame = NSRect(x: 150, y: 2, width: 80, height: 28)
-        [label, st, b].forEach(v.addSubview)
-        durLabel = label
+        b.frame = NSRect(x: x, y: 6, width: inner, height: 28)
+        b.autoresizingMask = .width
+        [dur, until, s, b].forEach(v.addSubview)
+        durLabel = dur
+        untilLabel = until
+        updateTimerLabels()
         return v
     }
 
-    @objc func stepped(_ s: NSStepper) {
-        step = s.integerValue
-        durLabel?.stringValue = fmt(steps[step])
+    func updateTimerLabels() {
+        let mins = steps[step], end = Date().addingTimeInterval(TimeInterval(mins * 60))
+        let at = clock.string(from: end)
+        durLabel?.stringValue = fmt(mins)
+        untilLabel?.stringValue = Calendar.current.isDateInToday(end)
+            ? t("until \(at)", "до \(at)") : t("until tomorrow \(at)", "до завтра \(at)")
+    }
+
+    @objc func slid(_ s: NSSlider) {
+        step = Int(s.doubleValue.rounded())
         defaults.set(step, forKey: "step")
+        updateTimerLabels()
+    }
+
+    /// Строка с переключателем справа, как Wi-Fi/Bluetooth в системных меню.
+    func switchRow(_ title: String, icon: String, isOn: Bool, action: Selector, tip: String) -> NSView {
+        let h: CGFloat = 28
+        let v = NSView(frame: NSRect(x: 0, y: 0, width: menuWidth, height: h))
+        v.autoresizingMask = .width
+        if let iv = iconView(icon, rowHeight: h) { v.addSubview(iv) }
+        let sw = NSSwitch()
+        sw.controlSize = .small
+        sw.state = isOn ? .on : .off
+        sw.target = self
+        sw.action = action
+        sw.sizeToFit()
+        sw.frame.origin = NSPoint(x: menuWidth - rightInset + 3 - sw.frame.width, y: (h - sw.frame.height) / 2) // у NSSwitch 3pt полей
+        sw.autoresizingMask = .minXMargin
+        let l = NSTextField(labelWithString: title)
+        l.font = .menuFont(ofSize: 0)
+        l.frame = NSRect(x: titleX, y: (h - 16) / 2, width: sw.frame.minX - titleX - 8, height: 16)
+        l.autoresizingMask = .width
+        [l, sw].forEach(v.addSubview)
+        v.toolTip = tip
+        return v
+    }
+
+    func safetyView() -> NSView {
+        switchRow(t("Overheat Protection", "Защита от перегрева"), icon: "thermometer.medium", isOn: safety,
+                  action: #selector(switchSafety(_:)),
+                  tip: t("Lid closed → screen goes dark (not locked).\n" +
+                         "Overheating with the lid closed → trackpad siren, Low Power Mode after 1 min, sleep after 3 min.",
+                         "Крышка закрыта → экран гаснет (без блокировки).\n" +
+                         "Перегрев при закрытой крышке → гул тачпадом, через 1 мин энергосбережение, через 3 мин Mac засыпает."))
+    }
+
+    /// «Открывать при входе» через SMAppService (macOS 13+); на 11–12 строки нет.
+    func loginView() -> NSView? {
+        guard #available(macOS 13, *) else { return nil }
+        return switchRow(t("Open at Login", "Открывать при входе"), icon: "sunrise",
+                         isOn: SMAppService.mainApp.status == .enabled, action: #selector(switchLogin(_:)),
+                         tip: t("Start LidAwake automatically when you log in.", "Запускать LidAwake автоматически при входе в систему."))
+    }
+
+    @objc func switchLogin(_ sw: NSSwitch) {
+        guard #available(macOS 13, *) else { return }
+        let app = SMAppService.mainApp
+        do {
+            if sw.state == .on { try app.register() } else { try app.unregister() }
+        } catch {
+            NSSound.beep()
+        }
+        // Пользователь раньше выключил LidAwake в «Объектах входа» — включить можно только там.
+        if app.status == .requiresApproval {
+            menu?.cancelTracking()
+            SMAppService.openSystemSettingsLoginItems()
+        }
+        sw.state = app.status == .enabled ? .on : .off
     }
 
     @objc func startTimed() {
@@ -253,7 +376,9 @@ final class App: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async { self.turn(true, minutes: mins) } // после закрытия меню (может спросить пароль)
     }
 
-    @objc func turnOff() { turn(false) }
+    @objc func quit() { NSApp.terminate(nil) }
+
+    @objc func toggleFromMenu() { turn(!on) }
 
     // MARK: - Права
 
@@ -352,6 +477,8 @@ final class App: NSObject, NSApplicationDelegate {
             b.imagePosition = .imageOnly
             item.length = NSStatusItem.squareLength
         }
+        b.setAccessibilityLabel(on ? t("LidAwake: on, Mac won't sleep", "LidAwake: включено, Mac не спит")
+                                   : t("LidAwake: off", "LidAwake: выключено"))
         b.toolTip = !on ? "LidAwake: OFF"
             : offAt.map { let at = clock.string(from: $0); return t("LidAwake: awake until \(at)", "LidAwake: не спит до \(at)") }
             ?? t("LidAwake: ON — Mac won't sleep", "LidAwake: ON — Mac не спит")

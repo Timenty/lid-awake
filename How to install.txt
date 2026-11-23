@@ -21,9 +21,9 @@ INSTALL MANUALLY (from this archive)
 
 USAGE
 • Click the mug — on/off. The first time, macOS asks for your Mac password (once).
-• Right-click (or two-finger click) — menu: pick a duration (−/+) and press Start — it turns off by itself.
+• Right-click (or two-finger click) — menu: pick a duration with the slider and press Start — it turns off by itself.
   Also: Turn Off, Overheat Protection, Quit (sleep is restored).
-• Launch at login: System Settings → General → Login Items → + → LidAwake.
+• Launch at login: right-click the mug → Open at Login.
 
 OVERHEAT PROTECTION (in the menu, on by default)
 • Lid closed — the screen goes dark (not locked); lid opened — brightness is restored.

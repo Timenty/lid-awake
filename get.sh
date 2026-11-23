@@ -39,5 +39,5 @@ t "   Click — on/off. Right-click — timer, overheat protection, quit." \
   "   Клик — вкл/выкл. Правый клик — таймер, защита, выход."
 t "   macOS asks for your password once, the first time you turn it on." \
   "   При первом включении macOS один раз спросит пароль."
-t "   Launch at login: System Settings → General → Login Items → + → LidAwake." \
-  "   Автозапуск: Системные настройки → Основные → Объекты входа → «+» → LidAwake."
+t "   Launch at login: right-click the mug → Open at Login." \
+  "   Автозапуск: правый клик по кружке → «Открывать при входе»."

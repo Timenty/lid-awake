@@ -25,9 +25,10 @@ macOS normally puts a MacBook to sleep the moment you close the lid unless an ex
 
 - **Left click** the mug — toggle "never sleep" on/off (stays on until you turn it off).
 - **Right click / two-finger click** — menu:
-  - **Turn on for a set time**: pick a duration with `−` / `+` (15, 30, 45 min, 1, 1.5, 2, 3, 4, 6, 8, 12, 24 h) and press **Start**. Sleep is restored automatically when the timer ends. The last chosen duration is remembered.
+  - **Turn on for a set time**: pick a duration with the slider (15, 30, 45 min, 1, 1.5, 2, 3, 4, 6, 8, 12, 24 h) — the end time updates live — and press **Start**. Sleep is restored automatically when the timer ends. The last chosen duration is remembered.
   - Shows when it will turn off (`Turns off at 14:30 (in 1 h 12 min)`), or that it's on indefinitely.
   - **Turn off** and **Quit**.
+- **Open at Login** switch in the menu (macOS 13+, via `SMAppService`).
 - **Countdown in the menu bar** next to the mug while a timer is running (`H:MM`).
 - **Safety mode** (on by default, toggle in the menu) — protects the Mac while the lid is closed:
   - **Lid closed → screen brightness set to 0** (the screen is *not* locked); lid opened → previous brightness restored.
@@ -86,7 +87,7 @@ cd lid-awake
 ./install.sh     # build, install sudo rule (GUI password prompt), copy to /Applications, launch
 ```
 
-**Launch at login** (any option): System Settings → General → Login Items → `+` → LidAwake.
+**Launch at login:** right-click the mug → **Open at Login** (macOS 13+; uses `SMAppService`). On macOS 11–12: System Settings → Users & Groups → Login Items → `+` → LidAwake.
 
 ## How it works
 
