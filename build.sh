@@ -5,7 +5,7 @@ APP=LidAwake.app
 rm -rf $APP
 mkdir -p $APP/Contents/MacOS
 for A in arm64 x86_64; do
-  swiftc -O -wmo -target $A-apple-macos11 main.swift Mug.swift -o /tmp/lidawake-$A
+  swiftc -O -wmo -target $A-apple-macos11 main.swift Mug.swift Safety.swift -o /tmp/lidawake-$A
 done
 lipo -create /tmp/lidawake-arm64 /tmp/lidawake-x86_64 -output $APP/Contents/MacOS/LidAwake
 rm -f /tmp/lidawake-arm64 /tmp/lidawake-x86_64

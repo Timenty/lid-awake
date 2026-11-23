@@ -29,10 +29,15 @@ macOS normally puts a MacBook to sleep the moment you close the lid unless an ex
   - Shows when it will turn off (`Turns off at 14:30 (in 1 h 12 min)`), or that it's on indefinitely.
   - **Turn off** and **Quit**.
 - **Countdown in the menu bar** next to the mug while a timer is running (`H:MM`).
+- **Safety mode** (on by default, toggle in the menu) — protects the Mac while the lid is closed:
+  - **Lid closed → screen brightness set to 0** (the screen is *not* locked); lid opened → previous brightness restored.
+  - **Overheating with the lid closed → trackpad siren**: the Force Touch motor plays a smooth rising 20 → 600 Hz sweep (lingers in the lows, accelerates at the end) once per second, 10 times, each pulse longer than the last (0.2 → 0.5 s). It is both felt and heard — even with speakers muted. Opening the lid stops it.
+  - **Still hot after 1 min → Low Power Mode** is turned on (and turned back off when the Mac cools down, only if LidAwake was the one that enabled it).
+  - **Still hot after 3 min → sleep is re-enabled** and the Mac is put to sleep to prevent damage. The menu shows a note about it afterwards.
 - **Colored icon** when active — brown coffee and steam; adapts to light and dark menu bars. Monochrome empty mug when inactive.
 - **Safe by default** — quitting the app restores normal sleep. On launch it reads the real `pmset` state, so it never lies about whether sleep is disabled (e.g. after a crash).
 - **One-time setup** — on first use it asks for your password once (standard macOS dialog) and installs a narrowly-scoped sudo rule. No password prompts after that.
-- **Tiny and idle** — ~270 KB universal binary, no dependencies, no background polling, 0% CPU when idle. The countdown redraws only at the exact moment the minute changes.
+- **Tiny and idle** — ~330 KB universal binary, no dependencies, no background polling, 0% CPU when idle. The countdown redraws only at the exact moment the minute changes.
 - **Universal** — runs natively on Apple Silicon and Intel, macOS 11 Big Sur and later.
 
 > **UI language:** the in-app menu and the install guide (`Как установить.txt`) are currently in Russian.
@@ -70,7 +75,21 @@ When you turn LidAwake **on**, it:
 1. Runs `sudo -n /usr/bin/pmset -a disablesleep 1` — prevents system sleep entirely, including on lid close.
 2. Creates an IOKit power assertion `PreventUserIdleDisplaySleep` — the in-process equivalent of `caffeinate -d`, so the display doesn't idle-sleep while the lid is open. No extra `caffeinate` process is spawned.
 
-When you turn it **off** (manually, by timer, or by quitting), it runs `pmset -a disablesleep 0` and releases the assertion.
+When you turn it **off** (manually, by timer, or by quitting), it runs `pmset -a disablesleep 0` and releases the assertion. If the lid is closed at that moment (timer ran out, overheat protection), it also runs `pmset sleepnow`, so the Mac sleeps just like it normally would with the lid closed.
+
+### Safety mode internals
+
+Everything is event-driven — nothing is polled, so safety mode costs 0% CPU while idle.
+
+| What | How |
+|---|---|
+| Lid state | `AppleClamshellState` on `IOPMrootDomain` + IOKit interest notification `kIOPMMessageClamshellStateChange` |
+| Overheating | `ProcessInfo.thermalState` ≥ `.serious` + `thermalStateDidChangeNotification` — macOS's own thermal-pressure verdict (exact sensor temperatures need private SMC access) |
+| Brightness | `DisplayServicesGet/SetBrightness` from the private `DisplayServices` framework (loaded lazily via `dlopen`). The previous value is persisted, so it is restored even after a crash |
+| Trackpad siren | Force Touch actuator via the private `MultitouchSupport` framework (`MTActuatorOpen`, `MTActuationCreateFromDictionary`, `MTActuationActuate`), driving it with sine waveforms — technique from [os6/nospeaker](https://github.com/os6/nospeaker) (MIT). Loaded lazily, only when an alarm actually fires |
+| Low Power Mode | `sudo -n pmset -a lowpowermode 1/0` (macOS 12+) |
+
+Private frameworks are resolved with `dlopen`/`dlsym`; if a future macOS removes them, the corresponding step is silently skipped and everything else keeps working.
 
 You can verify the state at any time:
 
@@ -85,16 +104,17 @@ pmset -g assertions | grep LidAwake # display assertion
 
 ```
 /etc/sudoers.d/lidawake
-<your-user> ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 0, /usr/bin/pmset -a disablesleep 1
+<your-user> ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 0, /usr/bin/pmset -a disablesleep 1, /usr/bin/pmset -a lowpowermode 0, /usr/bin/pmset -a lowpowermode 1, /usr/bin/pmset sleepnow
 ```
 
-- It allows **only** these two exact commands, for **only** your user — nothing else can be run as root through it.
+- It allows **only** these exact commands, for **only** your user — nothing else can be run as root through it.
 - The file is validated with `visudo -c` before being installed (mode `0440`, owner `root:wheel`), so a malformed rule can never break `sudo`.
 - Installation goes through the standard macOS administrator password dialog (`do shell script … with administrator privileges`).
+- If an older rule (from a previous version) is found, LidAwake asks once to extend it when you turn it on — while you're at the Mac, never in the middle of an overheat.
 
 ## ⚠️ Warning
 
-While the mug is full, **your Mac will not sleep — even closed in a bag.** A MacBook running in a closed bag can overheat and drain its battery. Turn LidAwake off (empty mug) before packing your laptop, or use the timer mode.
+While the mug is full, **your Mac will not sleep — even closed in a bag.** A MacBook running in a closed bag can overheat and drain its battery. Safety mode is a last line of defense, not a license: turn LidAwake off (empty mug) before packing your laptop, or use the timer mode.
 
 ## Uninstall
 
@@ -103,7 +123,7 @@ osascript -e 'quit app "LidAwake"'           # also restores sleep
 sudo pmset -a disablesleep 0                 # just in case
 sudo rm /etc/sudoers.d/lidawake
 rm -rf /Applications/LidAwake.app
-defaults delete local.lidawake 2>/dev/null   # remembered timer duration
+defaults delete local.lidawake 2>/dev/null   # remembered settings
 ```
 
 ## Development
@@ -112,7 +132,8 @@ No Xcode project — plain `swiftc`.
 
 | File | Purpose |
 |---|---|
-| `main.swift` | App: status item, toggle, timer menu, `pmset`/IOKit logic, first-run sudo setup |
+| `main.swift` | App: status item, toggle, timer menu, safety state machine, `pmset`/IOKit logic, sudo setup |
+| `Safety.swift` | Lid notifications, built-in display brightness, trackpad siren |
 | `Mug.swift` | Hand-drawn mug icon (empty template / filled with coffee + steam) |
 | `build.sh` | Builds a universal (`arm64` + `x86_64`, macOS 11+) `LidAwake.app`, ad-hoc signed |
 | `install.sh` | Builds, installs the sudo rule, copies the app to `/Applications` and launches it |
@@ -124,7 +145,7 @@ No Xcode project — plain `swiftc`.
 ./dist.sh    # → dist/LidAwake.zip
 ```
 
-Editors using SourceKit may show `Cannot find 'mugImage' in scope` — that's because `main.swift` and `Mug.swift` are compiled together by `build.sh` without a package manifest; the build itself is fine.
+Editors using SourceKit may show `Cannot find 'mugImage' / 'Lid' in scope` — that's because the Swift files are compiled together by `build.sh` without a package manifest; the build itself is fine.
 
 ### Distribution without Gatekeeper warnings
 

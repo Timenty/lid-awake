@@ -1,11 +1,11 @@
 #!/bin/zsh
-# Ставит sudoers-правило (pmset disablesleep 0/1 без пароля) и копирует app в /Applications.
+# Ставит sudoers-правило (pmset disablesleep/lowpowermode/sleepnow без пароля) и копирует app в /Applications.
 set -e
 cd "$(dirname "$0")"
 ./build.sh
 U=$(id -un)
 TMP=$(mktemp)
-echo "$U ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 0, /usr/bin/pmset -a disablesleep 1" > $TMP
+echo "$U ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 0, /usr/bin/pmset -a disablesleep 1, /usr/bin/pmset -a lowpowermode 0, /usr/bin/pmset -a lowpowermode 1, /usr/bin/pmset sleepnow" > $TMP
 chmod 644 $TMP
 # GUI-запрос пароля — работает и без TTY.
 osascript -e "do shell script \"/usr/sbin/visudo -cf $TMP && /usr/bin/install -m 0440 -o root -g wheel $TMP /etc/sudoers.d/lidawake\" with administrator privileges"
